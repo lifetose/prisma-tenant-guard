@@ -1,5 +1,10 @@
 # prisma-tenant-guard
 
+[![npm](https://img.shields.io/npm/v/prisma-tenant-guard.svg)](https://www.npmjs.com/package/prisma-tenant-guard)
+[![ci](https://github.com/lifetose/prisma-tenant-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/lifetose/prisma-tenant-guard/actions/workflows/ci.yml)
+[![node](https://img.shields.io/node/v/prisma-tenant-guard.svg)](https://www.npmjs.com/package/prisma-tenant-guard)
+[![license](https://img.shields.io/npm/l/prisma-tenant-guard.svg)](./LICENSE)
+
 Row-level multi-tenancy for Prisma, in three parts:
 
 - a **tenant context** on `AsyncLocalStorage`, so nothing has to thread a tenant id through call sites,
@@ -9,11 +14,17 @@ Row-level multi-tenancy for Prisma, in three parts:
 
 Extracted from a multi-tenant SaaS where it gates CI over 53 models. No dependencies, no
 `@prisma/client` peer, no code generation: the extension is structural, so it works with whatever
-Prisma version and client output path you already have.
+Prisma version and client output path you already have. Ships CommonJS and ESM, so it drops into a
+NestJS app as readily as an ESM one.
 
 ```bash
 npm install prisma-tenant-guard
 ```
+
+If you came here looking for `prisma-multi-tenant`: that one is a CLI for reaching **multiple
+databases**, one per tenant, and its last release was 2.4.2 in November 2020 — before Prisma had
+client extensions. This is the other shape: one database, one schema, a tenant column per row,
+enforced through `$extends`.
 
 ## Declaring the tenancy
 
