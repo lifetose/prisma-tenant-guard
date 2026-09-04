@@ -1,0 +1,87 @@
+{
+  "name": "prisma-tenant-guard",
+  "version": "0.1.0",
+  "description": "Row-level multi-tenancy for Prisma: an AsyncLocalStorage tenant context, a client extension that filters reads and stamps writes, and a test kit that proves no model escaped isolation.",
+  "keywords": [
+    "prisma",
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "row-level-security",
+    "tenant-isolation",
+    "asynclocalstorage",
+    "prisma-extension",
+    "typescript"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lifetose/prisma-tenant-guard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lifetose/prisma-tenant-guard/issues"
+  },
+  "homepage": "https://github.com/lifetose/prisma-tenant-guard#readme",
+  "author": "lifetose",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./dist/esm/testing/index.d.ts",
+        "default": "./dist/esm/testing/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/testing/index.d.ts",
+        "default": "./dist/cjs/testing/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs && node scripts/postbuild.mjs",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "fix": "eslint . --fix && prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run lint && npm run format:check && npm run type-check && npm test && npm run build",
+    "prepublishOnly": "npm run verify",
+    "build:esm": "tsc -p tsconfig.build.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.9.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.68.0",
+    "vitest": "^4.1.11"
+  },
+  "module": "./dist/esm/index.js"
+}
