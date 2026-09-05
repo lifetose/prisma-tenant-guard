@@ -13,6 +13,7 @@
     "tenant",
     "tenant-isolation",
     "row-level-security",
+    "postgres-rls",
     "rls",
     "saas",
     "nestjs",
@@ -42,6 +43,16 @@
       "require": {
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
+      }
+    },
+    "./rls": {
+      "import": {
+        "types": "./dist/esm/rls/index.d.ts",
+        "default": "./dist/esm/rls/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/rls/index.d.ts",
+        "default": "./dist/cjs/rls/index.js"
       }
     },
     "./testing": {
@@ -80,11 +91,13 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.2.0",
+    "@types/pg": "^8.23.1",
     "eslint": "^10.9.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "globals": "^17.11.0",
+    "pg": "^8.23.0",
     "prettier": "^3.9.6",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.68.0",
