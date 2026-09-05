@@ -163,9 +163,113 @@ Read this list. Everything on it is a real hole, not a rough edge.
 - **Nested writes are not intercepted.** `organization.create({ data: { venues: { create } } })`
   reaches the inner model without going through the extension. Do provisioning-shaped writes in an
   explicit `$unscoped()` transaction, or split them.
-- **It is not a substitute for Postgres RLS.** This guards one application's Prisma client. Anything
-  else holding the same credentials — psql, a migration, another service — is unaffected.
+- **The extension alone is not a substitute for Postgres RLS.** It guards one application's Prisma
+  client; anything else holding the same credentials — psql, a migration, another service — is
+  unaffected. That is what `prisma-tenant-guard/rls` is for: the same config, enforced by the
+  database as well.
 - **Child paths must be `to-one`.** A path through a list relation is rejected by the audit.
+
+## Enforcing it in the database too
+
+The extension filters the client. Raw SQL is the hole it cannot close — and the list above says so.
+`prisma-tenant-guard/rls` closes it from the other side, generating Postgres row level security
+from the tenancy you already declared, so the rule lives in one place and is enforced in two.
+
+```ts
+import { generateRls, assertRlsCoverage } from "prisma-tenant-guard/rls";
+
+const plan = generateRls(tenancy, {
+  naming: "snake_case",
+  cast: "uuid",
+  children: { OrderLine: { foreignKey: "order_id" } },
+});
+
+assertRlsCoverage(plan);
+
+writeFileSync("prisma/migrations/…/migration.sql", plan.sql);
+```
+
+For each tenant-scoped model it emits:
+
+```sql
+ALTER TABLE "order" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "order" FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation" ON "order";
+CREATE POLICY "tenant_isolation" ON "order"
+  USING ("organization_id" = nullif(current_setting('app.organization_id', true), '')::uuid)
+  WITH CHECK ("organization_id" = nullif(current_setting('app.organization_id', true), '')::uuid);
+```
+
+Four decisions are load-bearing:
+
+- **`FORCE`**, because plain `ENABLE` exempts the table's owner — and the owner is usually exactly
+  the role your app connects as, which would make every policy decorative.
+- **`nullif(…, '')`**, because `set_config` writes an empty string rather than NULL. Without it an
+  unset tenant compares equal to an empty column instead of matching nothing, and the failure mode
+  of a missing context becomes _too many rows_ rather than none.
+- **`WITH CHECK` as well as `USING`**, so a write cannot place a row in another tenant.
+- **`::text` by default**, which is correct for uuid, int and text columns alike. Pass
+  `cast: "uuid"` once you know the type — it compares against the column directly, so the index is
+  still used.
+
+### Setting the tenant on the connection
+
+The policies read a session setting, so the transaction has to carry one:
+
+```ts
+import { setConfigSql, tenantSettings } from "prisma-tenant-guard/rls";
+
+await prisma.$transaction(async (tx) => {
+  for (const setting of tenantSettings(tenancy)) {
+    await tx.$executeRawUnsafe(setConfigSql(setting));
+  }
+
+  return tx.order.findMany();
+});
+```
+
+`set_config(…, true)` is transaction-local, so it cannot leak to the next request that borrows the
+same pooled connection.
+
+### The models it will not silently skip
+
+A child model has no tenant column — it reaches its tenant through a parent — so a policy for it
+needs the foreign key, which the tenancy config does not carry. Rather than quietly leaving those
+tables unprotected, `generateRls` reports them:
+
+```ts
+generateRls(tenancy).uncovered; // ["OrderLine"]
+```
+
+Declare the join to cover it, and `assertRlsCoverage` fails the build until every model is either
+covered or deliberately global — the same refusal-to-guess as the test kit.
+
+```ts
+generateRls(tenancy, {
+  children: { OrderLine: { foreignKey: "order_id" } },
+});
+```
+
+### Before you trust it
+
+Postgres skips RLS entirely for superusers and for roles with `BYPASSRLS`. Connect your application
+as a plain role that owns nothing, and check it:
+
+```sql
+SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;
+```
+
+Both must be `false`, or the policies above are theatre.
+
+The generated SQL is not taken on trust either: CI applies it to a real Postgres, then connects as
+an unprivileged role and checks that a tenant sees only its own rows, that an unset context sees
+none, that a write into another tenant is refused, that a row cannot be moved between tenants, and
+that a child is reached through its parent. Point `TENANT_GUARD_TEST_DATABASE_URL` at a database to
+run the same checks locally:
+
+```bash
+TENANT_GUARD_TEST_DATABASE_URL=postgres://… npx vitest run src/rls/postgres.integration.test.ts
+```
 
 ## The test kit
 
@@ -256,6 +360,15 @@ fixtures — re-seed between runs.
 | `tenancy.get(scope)` / `require(scope)` | read one scope                                        |
 | `tenancy.unscoped(fn)`                  | run `fn` with no context at all                       |
 | `tenancy.registry`                      | the resolved classification, for tooling              |
+
+From `prisma-tenant-guard/rls`:
+
+|                              |                                              |
+| ---------------------------- | -------------------------------------------- |
+| `generateRls(tenancy, opts)` | policies, plus the models it could not cover |
+| `assertRlsCoverage(plan)`    | throw unless every model is covered          |
+| `tenantSettings(tenancy)`    | the settings the current context implies     |
+| `setConfigSql(setting)`      | transaction-local `set_config`, escaped      |
 
 Errors carry a `code` (`TENANT_CONTEXT_MISSING`, `TENANT_MISMATCH`, `TENANT_MODEL_UNKNOWN`,
 `TENANT_CONFIG_INVALID`) alongside the model, operation and column, so an exception filter can map
